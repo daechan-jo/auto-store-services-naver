@@ -24,5 +24,5 @@ export class NaverProductOptionEntity {
 
   // NaverProduct와의 관계 설정
   @ManyToOne(() => NaverProductEntity, (product) => product.options, { onDelete: 'CASCADE' })
-  product: NaverProductEntity;
+  product: Type<NaverProductEntity>;
 }

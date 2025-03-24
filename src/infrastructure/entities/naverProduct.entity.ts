@@ -1,3 +1,4 @@
+import { Type } from '@daechanjo/models';
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, OneToMany } from 'typeorm';
 
 import { NaverProductOptionEntity } from './naverProductOption.entity';
@@ -29,5 +30,5 @@ export class NaverProductEntity {
     cascade: true,
     onDelete: 'CASCADE',
   })
-  options: NaverProductOptionEntity[];
+  options: Type<NaverProductOptionEntity>[];
 }

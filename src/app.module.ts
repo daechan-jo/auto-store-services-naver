@@ -7,7 +7,16 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { RedisModule } from '@nestjs-modules/ioredis';
 import { Queue } from 'bull';
 
+import { NaverMessageController } from './api/naver.message.controller';
 import { TypeormConfig } from './config/typeorm.config';
+import { NaverApiService } from './core/naver.api.service';
+import { NaverService } from './core/naver.service';
+import { SignatureService } from './core/signature.service';
+import { NaverProductEntity } from './infrastructure/entities/naverProduct.entity';
+import { NaverProductOptionEntity } from './infrastructure/entities/naverProductOption.entity';
+import { NaverUpdatedOptionEntity } from './infrastructure/entities/naverUpdatedOption.entity';
+import { NaverUpdatedProductEntity } from './infrastructure/entities/naverUpdatedProduct.entity';
+import { NaverRepository } from './infrastructure/repository/naver.repository';
 
 @Module({
   imports: [
@@ -16,9 +25,14 @@ import { TypeormConfig } from './config/typeorm.config';
       envFilePath: '/Users/daechanjo/codes/project/auto-store/.env',
     }),
     TypeOrmModule.forRootAsync(TypeormConfig),
-    TypeOrmModule.forFeature([]),
+    TypeOrmModule.forFeature([
+      NaverProductEntity,
+      NaverProductOptionEntity,
+      NaverUpdatedProductEntity,
+      NaverUpdatedOptionEntity,
+    ]),
     BullModule.registerQueueAsync({
-      name: 'coupang-message-queue',
+      name: 'naver-message-queue',
       useFactory: async (configService: ConfigService) => ({
         redis: {
           host: configService.get<string>('REDIS_HOST'),
@@ -43,8 +57,8 @@ import { TypeormConfig } from './config/typeorm.config';
     PlaywrightModule,
     RabbitMQModule,
   ],
-  controllers: [],
-  providers: [],
+  controllers: [NaverMessageController],
+  providers: [NaverService, NaverApiService, SignatureService, NaverRepository],
 })
 export class AppModule implements OnApplicationBootstrap, OnModuleInit {
   constructor(

@@ -55,5 +55,5 @@ export class NaverUpdatedProductEntity {
     cascade: true, // 상품 저장 시 옵션도 함께 저장 가능
     eager: true, // 상품 조회 시 옵션도 즉시 로딩(eager)할 지 여부
   })
-  options: NaverUpdatedOptionEntity[];
+  options: Type<NaverUpdatedOptionEntity>[];
 }

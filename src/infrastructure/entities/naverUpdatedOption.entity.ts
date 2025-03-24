@@ -29,5 +29,5 @@ export class NaverUpdatedOptionEntity {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'naver_updated_product_id' })
-  product: NaverUpdatedProductEntity;
+  product: Type<NaverUpdatedProductEntity>;
 }
