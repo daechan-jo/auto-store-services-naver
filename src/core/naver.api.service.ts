@@ -1,4 +1,5 @@
 import { CronType } from '@daechanjo/models';
+import { NaverChannelProduct } from '@daechanjo/models/dist/interfaces/naver/naverChannelProduct.interface';
 import { RabbitMQService } from '@daechanjo/rabbitmq';
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
@@ -13,7 +14,20 @@ export class NaverApiService {
     private readonly signatureService: SignatureService,
   ) {}
 
-  async postSearchProducts(cronId: string, store: string, type: string) {
+  /**
+   * 네이버 쇼핑몰 상품 목록을 검색하고 모든 페이지의 데이터를 수집합니다.
+   * 페이지네이션을 자동으로 처리하여 모든 상품 정보를 반환합니다.
+   *
+   * @param {string} cronId - 현재 실행 중인 크론 작업의 고유 식별자
+   * @param {string} type - 크론 작업의 유형 (예: 'SOLDOUT', 'UPDATE' 등)
+   * @returns {Promise<NaverChannelProduct[]>} 수집된 모든 네이버 채널 상품 객체의 배열
+   * @throws {Error} 네이버 API 호출 중 오류가 발생할 경우 예외 발생
+   *
+   * @example
+   * // 상품 목록 가져오기
+   * const products = await postSearchProducts('cron-123', CronType.SOLDOUT);
+   */
+  async postSearchProducts(cronId: string, type: string): Promise<NaverChannelProduct[]> {
     const accessToken = await this.signatureService.getAccessToken();
     const today = moment().format('YYYY-MM-DD');
     const initday = '2024-10-01';
@@ -40,16 +54,15 @@ export class NaverApiService {
           toDate: today,
         };
 
-        const response = await axios.post(
-          'https://api.commerce.naver.com/external/v1/products/search',
-          requestBody,
-          { headers },
+        const { contents, totalPages } = await this.postSearchProduct(
+          headers,
+          currentPage,
+          initday,
+          today,
         );
 
-        const { contents, totalPages } = response.data;
-
         // 현재 페이지의 channelProducts 배열에서 데이터를 수집
-        contents.forEach((content: { channelProducts: any }) => {
+        contents.forEach((content: { channelProducts: NaverChannelProduct[] }) => {
           if (content.channelProducts && Array.isArray(content.channelProducts)) {
             allChannelProducts.push(...content.channelProducts);
           }
@@ -73,6 +86,54 @@ export class NaverApiService {
 
       throw new Error('네이버 API 요청 실패');
     }
+  }
+
+  /**
+   * 네이버 쇼핑몰 API를 호출하여 특정 페이지의 상품 목록을 가져옵니다.
+   * 상품 검색 API를 호출하고 응답 데이터를 반환합니다.
+   *
+   * @param {Object} headers - API 요청에 필요한 헤더 정보
+   * headers.Authorization<string> - Bearer 토큰이 포함된 인증 헤더
+   * headers['Content-Type'] - 요청 콘텐츠 타입 (항상 'application/json')
+   * @param {number} currentPage - 조회할 페이지 번호 (1부터 시작)
+   * @param {string} initday - 검색 시작 날짜 (YYYY-MM-DD 형식)
+   * @param {string} today - 검색 종료 날짜 (YYYY-MM-DD 형식, 보통 현재 날짜)
+   * @returns {Promise<{contents: Array<{channelProducts: NaverChannelProduct[]}>, totalPages: number}>}
+   *          조회된 상품 데이터와, 전체 페이지 수를 포함하는 객체
+   * @throws {Error} API 요청 실패 시 Axios에서 발생하는 예외를 그대로 전파
+   *
+   * @example
+   * // 특정 페이지의 상품 데이터 가져오기
+   * const { contents, totalPages } = await postSearchProduct(
+   *   { Authorization: 'Bearer token123', 'Content-Type': 'application/json' },
+   *   1,
+   *   '2024-01-01',
+   *   '2024-03-24'
+   * );
+   */
+  async postSearchProduct(
+    headers: { Authorization: string; 'Content-Type': string },
+    currentPage: number,
+    initday: string,
+    today: string,
+  ): Promise<{ contents: Array<{ channelProducts: NaverChannelProduct[] }>; totalPages: number }> {
+    const requestBody = {
+      sellerManagementCode: '',
+      productStatusTypes: ['SALE'], // 원하는 상품 상태
+      page: currentPage,
+      size: 500,
+      orderType: 'NO',
+      periodType: 'PROD_REG_DAY',
+      fromDate: initday,
+      toDate: today,
+    };
+
+    const response = await axios.post(
+      'https://api.commerce.naver.com/external/v1/products/search',
+      requestBody,
+      { headers },
+    );
+    return response.data;
   }
 
   async deleteNaverOriginProducts(

@@ -6,8 +6,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { RedisModule } from '@nestjs-modules/ioredis';
 import { Queue } from 'bull';
-import {TypeormConfig} from "./config/typeorm.config";
 
+import { TypeormConfig } from './config/typeorm.config';
 
 @Module({
   imports: [
@@ -44,8 +44,7 @@ import {TypeormConfig} from "./config/typeorm.config";
     RabbitMQModule,
   ],
   controllers: [],
-  providers: [
-  ],
+  providers: [],
 })
 export class AppModule implements OnApplicationBootstrap, OnModuleInit {
   constructor(
