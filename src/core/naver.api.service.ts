@@ -33,6 +33,7 @@ export class NaverApiService {
     const initday = '2024-10-01';
     const allChannelProducts: any[] = [];
     let currentPage = 1;
+    let lastReportedProgress = 0;
 
     const headers = {
       Authorization: `Bearer ${accessToken}`,
@@ -42,17 +43,6 @@ export class NaverApiService {
     try {
       while (true) {
         console.log(`${type}${cronId}: 페이지 ${currentPage} 데이터를 가져옵니다...`);
-
-        const requestBody = {
-          sellerManagementCode: '',
-          productStatusTypes: ['SALE'], // 원하는 상품 상태
-          page: currentPage,
-          size: 500,
-          orderType: 'NO',
-          periodType: 'PROD_REG_DAY',
-          fromDate: initday,
-          toDate: today,
-        };
 
         const { contents, totalPages } = await this.postSearchProduct(
           headers,
@@ -67,6 +57,13 @@ export class NaverApiService {
             allChannelProducts.push(...content.channelProducts);
           }
         });
+
+        const currentProgress = Math.floor((currentPage / totalPages) * 100);
+        const roundedProgress = Math.floor(currentProgress / 10) * 10;
+        if (roundedProgress > lastReportedProgress) {
+          console.log(`${type}${cronId}: 데이터 수집 진행률: ${roundedProgress}%`);
+          lastReportedProgress = roundedProgress;
+        }
 
         // 다음 페이지로 이동. 마지막 페이지면 루프 종료
         if (currentPage >= totalPages) {
@@ -111,7 +108,7 @@ export class NaverApiService {
    *   '2024-03-24'
    * );
    */
-  async postSearchProduct(
+  private async postSearchProduct(
     headers: { Authorization: string; 'Content-Type': string },
     currentPage: number,
     initday: string,
