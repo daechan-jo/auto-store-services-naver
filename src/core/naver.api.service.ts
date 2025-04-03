@@ -1,4 +1,4 @@
-import { CronType } from '@daechanjo/models';
+import { JobType } from '@daechanjo/models';
 import { NaverChannelProduct } from '@daechanjo/models/dist/interfaces/naver/naverChannelProduct.interface';
 import { RabbitMQService } from '@daechanjo/rabbitmq';
 import { Injectable } from '@nestjs/common';
@@ -18,16 +18,16 @@ export class NaverApiService {
    * 네이버 쇼핑몰 상품 목록을 검색하고 모든 페이지의 데이터를 수집합니다.
    * 페이지네이션을 자동으로 처리하여 모든 상품 정보를 반환합니다.
    *
-   * @param {string} cronId - 현재 실행 중인 크론 작업의 고유 식별자
-   * @param {string} type - 크론 작업의 유형 (예: 'SOLDOUT', 'UPDATE' 등)
+   * @param {string} jobId - 현재 실행 중인 크론 작업의 고유 식별자
+   * @param {string} jobType - 크론 작업의 유형 (예: 'SOLDOUT', 'UPDATE' 등)
    * @returns {Promise<NaverChannelProduct[]>} 수집된 모든 네이버 채널 상품 객체의 배열
    * @throws {Error} 네이버 API 호출 중 오류가 발생할 경우 예외 발생
    *
    * @example
    * // 상품 목록 가져오기
-   * const products = await postSearchProducts('cron-123', CronType.SOLDOUT);
+   * const products = await postSearchProducts('cron-123', JobType.SOLDOUT);
    */
-  async postSearchProducts(cronId: string, type: string): Promise<NaverChannelProduct[]> {
+  async postSearchProducts(jobId: string, jobType: string): Promise<NaverChannelProduct[]> {
     const accessToken = await this.signatureService.getAccessToken();
     const today = moment().format('YYYY-MM-DD');
     const initday = '2024-10-01';
@@ -42,7 +42,7 @@ export class NaverApiService {
 
     try {
       while (true) {
-        console.log(`${type}${cronId}: 페이지 ${currentPage} 데이터를 가져옵니다...`);
+        console.log(`${jobType}${jobId}: 페이지 ${currentPage} 데이터를 가져옵니다...`);
 
         const { contents, totalPages } = await this.postSearchProduct(
           headers,
@@ -61,13 +61,13 @@ export class NaverApiService {
         const currentProgress = Math.floor((currentPage / totalPages) * 100);
         const roundedProgress = Math.floor(currentProgress / 10) * 10;
         if (roundedProgress > lastReportedProgress) {
-          console.log(`${type}${cronId}: 데이터 수집 진행률: ${roundedProgress}%`);
+          console.log(`${jobType}${jobId}: 데이터 수집 진행률: ${roundedProgress}%`);
           lastReportedProgress = roundedProgress;
         }
 
         // 다음 페이지로 이동. 마지막 페이지면 루프 종료
         if (currentPage >= totalPages) {
-          console.log(`${type}${cronId}: 모든 페이지 데이터를 수집했습니다.`);
+          console.log(`${jobType}${jobId}: 모든 페이지 데이터를 수집했습니다.`);
           break;
         }
 
@@ -77,7 +77,7 @@ export class NaverApiService {
       return allChannelProducts;
     } catch (error: any) {
       console.error(
-        `${CronType.ERROR}${type}${cronId}: API 요청 오류:`,
+        `${JobType.ERROR}${jobType}${jobId}: API 요청 오류:`,
         error.response?.data || error.message,
       );
 
@@ -134,9 +134,9 @@ export class NaverApiService {
   }
 
   async deleteNaverOriginProducts(
-    cronId: string,
+    jobId: string,
+    jobType: string,
     store: string,
-    type: string,
     matchedNaverProducts: any[],
   ) {
     const deletedProducts = [];
@@ -154,7 +154,7 @@ export class NaverApiService {
           { headers },
         );
         console.log(
-          `${type}${cronId}: 네이버 상품 삭제 성공 originProductNo-${product.originProductNo}`,
+          `${jobType}${jobId}: 네이버 상품 삭제 성공 originProductNo-${product.originProductNo}`,
         );
 
         deletedProducts.push({
@@ -163,7 +163,7 @@ export class NaverApiService {
         });
       } catch (error: any) {
         console.error(
-          `${CronType.ERROR}${type}${cronId}: 네이버 상품 삭제 실패 originProductNo-${product.originProductNo})\n`,
+          `${JobType.ERROR}${jobType}${jobId}: 네이버 상품 삭제 실패 originProductNo-${product.originProductNo})\n`,
           error.response?.data || error.message,
         );
       }
@@ -173,20 +173,20 @@ export class NaverApiService {
       try {
         await this.rabbitmqService.emit('mail-queue', 'sendBatchDeletionEmail', {
           deletedProducts: deletedProducts,
-          type: type,
+          jobType: jobType,
           store: store,
           platformName: 'naver',
         });
       } catch (error: any) {
         console.error(
-          `${CronType.ERROR}${type}${cronId}: 삭제 알림 이메일 발송 실패\n`,
+          `${JobType.ERROR}${jobType}${jobId}: 삭제 알림 이메일 발송 실패\n`,
           error.message,
         );
       }
     }
   }
 
-  async getOriginalProduct(cronId: string, type: string, store: string, originProductNo: number) {
+  async getOriginalProduct(jobId: string, jobType: string, store: string, originProductNo: number) {
     const accessToken = await this.signatureService.getAccessToken();
     const headers = {
       Authorization: `Bearer ${accessToken}`,
@@ -202,12 +202,12 @@ export class NaverApiService {
       return response.data;
     } catch (error: any) {
       console.error(
-        `${CronType.ERROR}${type}${cronId}: 원상품 조회 실패 ${originProductNo}\n`,
+        `${JobType.ERROR}${jobType}${jobId}: 원상품 조회 실패 ${originProductNo}\n`,
         error.message,
       );
     }
   }
-  async modifyNaverOriginalProduct(cronId: string, store: string, type: string, product: any) {
+  async modifyNaverOriginalProduct(jobId: string, jobType: string, store: string, product: any) {
     const accessToken = await this.signatureService.getAccessToken();
     const headers = {
       Authorization: `Bearer ${accessToken}`,
@@ -216,7 +216,12 @@ export class NaverApiService {
 
     try {
       // 1. 기존 상품 정보 가져오기
-      const response = await this.getOriginalProduct(cronId, type, store, product.originProductNo);
+      const response = await this.getOriginalProduct(
+        jobId,
+        jobType,
+        store,
+        product.originProductNo,
+      );
       const originProduct = response.originProduct;
 
       // 2. 상품 가격 업데이트
@@ -244,7 +249,7 @@ export class NaverApiService {
         { headers },
       );
     } catch (error: any) {
-      console.error(`${CronType.ERROR}${type}${cronId}`, error.response.data);
+      console.error(`${JobType.ERROR}${jobType}${jobId}`, error.response.data);
     }
   }
 }

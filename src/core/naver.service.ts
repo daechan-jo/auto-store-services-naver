@@ -1,6 +1,6 @@
 import path from 'path';
 
-import { CronType } from '@daechanjo/models';
+import { JobType } from '@daechanjo/models';
 import { RabbitMQService } from '@daechanjo/rabbitmq';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -19,8 +19,8 @@ export class NaverService {
   ) {}
 
   async saveOriginalProductOptions(
-    cronId: string,
-    type: string,
+    jobId: string,
+    jobType: string,
     store: string,
     originProductNos: number[],
   ) {
@@ -32,21 +32,21 @@ export class NaverService {
     let totalFailed = 0;
     const batchedProducts: any[] = [];
 
-    console.log(`${type}${cronId}: ${originProductNos.length}개의 네이버 상품 옵션 조회 시작.`);
+    console.log(`${jobType}${jobId}: ${originProductNos.length}개의 네이버 상품 옵션 조회 시작.`);
 
     for (let i = 0; i < originProductNos.length; i += BATCH_SIZE) {
       const batch = originProductNos.slice(i, i + BATCH_SIZE);
 
       console.log(
-        `${type}${cronId}: 배치 ${Math.ceil(i / BATCH_SIZE) + 1} 처리 시작 (${batch.length}개 상품 조회 중)...`,
+        `${jobType}${jobId}: 배치 ${Math.ceil(i / BATCH_SIZE) + 1} 처리 시작 (${batch.length}개 상품 조회 중)...`,
       );
 
       // 개별 상품 데이터 처리
       for (const originProductNo of batch) {
         try {
           const response = await this.naverApiService.getOriginalProduct(
-            cronId,
-            type,
+            jobId,
+            jobType,
             store,
             originProductNo,
           );
@@ -60,7 +60,7 @@ export class NaverService {
               salePrice: response.originProduct.salePrice,
               createdAt: new Date(),
               options: [], // 옵션 정보를 저장할 배열
-              cronId: cronId,
+              jobId: jobId,
             };
 
             const optionCombinations =
@@ -79,7 +79,7 @@ export class NaverService {
           }
         } catch (error: any) {
           console.error(
-            `${type}${cronId}: 원상품 조회 실패 (상품번호: ${originProductNo})\n`,
+            `${jobType}${jobId}: 원상품 조회 실패 (상품번호: ${originProductNo})\n`,
             error.message,
           );
           totalFailed++;
@@ -93,60 +93,62 @@ export class NaverService {
       // 저장 배치 크기 이상일 경우 저장
       if (batchedProducts.length >= SAVE_BATCH_SIZE) {
         console.log(
-          `${type}${cronId}: 중간 저장 시작 (${batchedProducts.length}개 상품 저장 중)...`,
+          `${jobType}${jobId}: 중간 저장 시작 (${batchedProducts.length}개 상품 저장 중)...`,
         );
-        await this.saveNaverProducts(type, cronId, batchedProducts.splice(0, SAVE_BATCH_SIZE));
-        console.log(`${type}${cronId}: 중간 저장 완료.`);
+        await this.saveNaverProducts(jobType, jobId, batchedProducts.splice(0, SAVE_BATCH_SIZE));
+        console.log(`${jobType}${jobId}: 중간 저장 완료.`);
       }
     }
 
     // 남아 있는 데이터 저장
     if (batchedProducts.length > 0) {
-      console.log(`${type}${cronId}: 최종 저장 시작 (${batchedProducts.length}개 상품 저장 중)...`);
-      await this.saveNaverProducts(type, cronId, batchedProducts);
-      console.log(`${type}${cronId}: 최종 저장 완료.`);
+      console.log(
+        `${jobType}${jobId}: 최종 저장 시작 (${batchedProducts.length}개 상품 저장 중)...`,
+      );
+      await this.saveNaverProducts(jobType, jobId, batchedProducts);
+      console.log(`${jobType}${jobId}: 최종 저장 완료.`);
     }
 
     console.log(
-      `${type}${cronId}: 네이버 상품 옵션 조회 및 저장 완료. 총 처리 상품: ${totalProcessed}, 실패: ${totalFailed}`,
+      `${jobType}${jobId}: 네이버 상품 옵션 조회 및 저장 완료. 총 처리 상품: ${totalProcessed}, 실패: ${totalFailed}`,
     );
   }
 
-  async saveNaverProducts(type: string, cronId: string, products: any[]) {
+  async saveNaverProducts(jobType: string, jobId: string, products: any[]) {
     try {
       await this.naverRepository.saveNaverProducts(products);
     } catch (error: any) {
-      console.error(`${CronType.ERROR}${type}${cronId}: 상품 저장 실패\n`, error.message);
+      console.error(`${JobType.ERROR}${jobType}${jobId}: 상품 저장 실패\n`, error.message);
       throw error;
     }
   }
 
-  async setNewPrice(cronId: string, type: string, store: string) {
-    console.log(`${type}${cronId}: 네이버 가격 API 시작`);
+  async setNewPrice(jobId: string, jobType: string, store: string) {
+    console.log(`${jobType}${jobId}: 네이버 가격 API 시작`);
     let successCount = 0;
     let failedCount = 0;
 
-    const updatedProduct = await this.naverRepository.getUpdatedProduct(cronId);
+    const updatedProduct = await this.naverRepository.getUpdatedProduct(jobId);
 
     for (const [i, product] of updatedProduct.entries()) {
-      console.log(`${type}${cronId}: ${i + 1}/${updatedProduct.length}`);
+      console.log(`${jobType}${jobId}: ${i + 1}/${updatedProduct.length}`);
 
       try {
-        await this.naverApiService.modifyNaverOriginalProduct(cronId, store, type, product);
+        await this.naverApiService.modifyNaverOriginalProduct(jobId, jobType, store, product);
 
         successCount++;
         await new Promise((resolve) => setTimeout(resolve, 500));
       } catch (error: any) {
         failedCount++;
         console.error(
-          `${CronType.ERROR}${type}${cronId}:`,
+          `${JobType.ERROR}${jobType}${jobId}:`,
           JSON.stringify(product, null, 2),
           error.message,
         );
       }
     }
 
-    console.log(`${type}${cronId}: 엑셀 생성 시작`);
+    console.log(`${jobType}${jobId}: 엑셀 생성 시작`);
     setImmediate(async () => {
       try {
         const excelData = updatedProduct.map((product: any) => ({
@@ -157,7 +159,7 @@ export class NaverService {
           salePrice: product.salePrice,
           comparisonPrice: product.comparisonPrice,
           newPrice: product.newPrice,
-          cronId: product.cronId,
+          jobId: product.jobId,
         }));
 
         const worksheet = XLSX.utils.json_to_sheet(excelData);
@@ -168,11 +170,11 @@ export class NaverService {
           .replace(/-/g, ''); // '-' 제거
         XLSX.utils.book_append_sheet(workbook, worksheet, `naver-${store}-${formattedDate}`);
 
-        const filePath = path.resolve(__dirname, '../../../../../tmp', `naver_${cronId}.xlsx`);
+        const filePath = path.resolve(__dirname, '../../../../../tmp', `naver_${jobId}.xlsx`);
 
         XLSX.writeFile(workbook, filePath);
 
-        console.log(`${type}${cronId}: 엑셀 파일 전송 요청`);
+        console.log(`${jobType}${jobId}: 엑셀 파일 전송 요청`);
         await this.rabbitmqService.emit('mail-queue', 'sendUpdateEmail', {
           filePath: filePath,
           successCount: successCount,
@@ -181,16 +183,16 @@ export class NaverService {
           smartStore: 'naver',
         });
 
-        console.log(`${type}${cronId}: 엑셀 파일 전송 요청 완료`);
+        console.log(`${jobType}${jobId}: 엑셀 파일 전송 요청 완료`);
       } catch (error: any) {
-        console.error(`${CronType.ERROR}${type}${cronId}: 메시지 전송 실패\n`, error.message);
+        console.error(`${JobType.ERROR}${jobType}${jobId}: 메시지 전송 실패\n`, error.message);
       }
     });
-    console.log(`${type}${cronId}: 상품 가격 업데이트 완료`);
+    console.log(`${jobType}${jobId}: 상품 가격 업데이트 완료`);
   }
 
-  async clearNaverProducts(cronId: string, type: string) {
-    console.log(`${type}${cronId}: 네이버 데이터베이스 초기화`);
+  async clearNaverProducts(jobId: string, jobType: string) {
+    console.log(`${jobType}${jobId}: 네이버 데이터베이스 초기화`);
     await this.naverRepository.clearNaverProducts();
   }
 }

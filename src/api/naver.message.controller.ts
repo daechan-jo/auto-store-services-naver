@@ -1,4 +1,4 @@
-import { CronType, RabbitmqMessage } from '@daechanjo/models';
+import { JobType, RabbitmqMessage } from '@daechanjo/models';
 import { InjectQueue } from '@nestjs/bull';
 import { Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
@@ -18,46 +18,46 @@ export class NaverMessageController {
   @MessagePattern('naver-queue')
   async processMessage(message: RabbitmqMessage) {
     const { pattern, payload } = message;
-    console.log(`${payload.type}${payload.cronId}: 📥${pattern}`);
+    console.log(`${payload.jobType}${payload.jobId}: 📥${pattern}`);
 
     switch (pattern) {
       case 'postSearchProducts':
         const allChannelProducts = await this.naverApiService.postSearchProducts(
-          payload.cronId,
-          payload.type,
+          payload.jobId,
+          payload.jobType,
         );
         return { status: 'success', data: allChannelProducts };
 
       case 'deleteNaverOriginProducts':
         await this.naverApiService.deleteNaverOriginProducts(
-          payload.cronId,
+          payload.jobId,
+          payload.jobType,
           payload.store,
-          payload.type,
-          payload.matchedNaverProducts,
+          payload.data,
         );
         break;
 
       case 'saveOriginalProductOptions':
         await this.naverService.saveOriginalProductOptions(
-          payload.cronId,
-          payload.type,
+          payload.jobId,
+          payload.jobType,
           payload.store,
-          payload.originProductNos,
+          payload.data,
         );
         return { status: 'success' };
 
       case 'setNewPrice':
-        await this.naverService.setNewPrice(payload.cronId, payload.type, payload.store);
+        await this.naverService.setNewPrice(payload.jobId, payload.jobType, payload.store);
         return { status: 'success' };
 
       case 'clearNaverProducts':
-        await this.naverService.clearNaverProducts(payload.cronId, payload.type);
+        await this.naverService.clearNaverProducts(payload.jobId, payload.jobType);
         return { status: 'success' };
 
       default:
         console.error();
         console.error(
-          `${CronType.ERROR}${payload.type}${payload.cronId}: 📬알 수 없는 패턴 유형 ${pattern}`,
+          `${JobType.ERROR}${payload.jobType}${payload.jobId}: 📬알 수 없는 패턴 유형 ${pattern}`,
         );
         return { status: 'error', message: `알 수 없는 패턴 유형: ${pattern}` };
     }
